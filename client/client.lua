@@ -1,264 +1,169 @@
-local QBCore = exports['qb-core']:GetCoreObject()
+local ESXVer = Config.ESXVer
+local FrameWork = nil
+
+if Config.FrameWork == "auto" then
+    if GetResourceState('es_extended') == 'started' then
+        if ESXVer == 'new' then
+            ESX = exports['es_extended']:getSharedObject()
+            FrameWork = 'esx'
+        else
+            ESX = nil
+            while ESX == nil do
+                TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
+                Citizen.Wait(0)
+            end
+            FrameWork = 'esx'
+        end
+    elseif GetResourceState('qb-core') == 'started' then
+        QBCore = exports['qb-core']:GetCoreObject()
+        FrameWork = 'qb'
+    end
+elseif Config.FrameWork == "esx" and GetResourceState('es_extended') == 'started' then
+    if ESXVer == 'new' then
+        ESX = exports['es_extended']:getSharedObject()
+    else
+        ESX = nil
+        while ESX == nil do
+            TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
+            Citizen.Wait(0)
+        end
+    end
+    FrameWork = 'esx'
+elseif Config.FrameWork == "qb" and GetResourceState('qb-core') == 'started' then
+    QBCore = exports['qb-core']:GetCoreObject()
+    FrameWork = 'qb'
+else
+    print('=== NO SUPPORTED FRAMEWORK FOUND ===')
+end
+
+function TriggerServerCallback(name, cb, ...)
+    if FrameWork == 'qb' then
+        QBCore.Functions.TriggerCallback(name, cb, ...)
+    elseif FrameWork == 'esx' then
+        ESX.TriggerServerCallback(name, cb, ...)
+    end
+end
+
+lib.locale()
+
 local CryptoMinerProp = Config.CryptoMinerProp
 local CryptoBalance = 0.0
 local MinerStatus = false
-
-local arg = {
-    owned = false
-}
+local arg = { owned = false }
 
 RegisterNetEvent('razed-cryptomining:client:CryptoMiningMenu', function()
-    QBCore.Functions.TriggerCallback('razed-cryptomining:server:showBalance', function(balance)
-    lib.registerContext({
-        id = 'cryptomenuon',
-        title = 'Crypto Miner Menu',
-        options = {
-            {
-                title = 'Toggle, View the Status or Withdraw.',
-              },
-            {
-                title = 'Toggle Crypto Miner',
-                description = 'This toggles the crypto miner to start or stop.',
-                icon = 'toggle-on',
-                onSelect = function()
-                    ToggleCryptoMiner()
-                    if MinerStatus == true then
-                        lib.showContext('cryptomenuon')
-                    else
-                        lib.showContext('cryptomenuoff')
+    TriggerServerCallback('razed-cryptomining:server:showBalance', function(balance)
+        lib.registerContext({
+            id = 'cryptomenuon',
+            title = locale('crypto_menu'),
+            options = {
+                -- { title = locale('toggle_status_withdraw') },
+                {
+                    title = locale('toggle_crypto_miner'),
+                    description = locale('miner_running_desc'),
+                    icon = 'toggle-on',
+                    onSelect = function()
+                        ToggleCryptoMiner()
+                        if MinerStatus then
+                            lib.showContext('cryptomenuon')
+                        else
+                            lib.showContext('cryptomenuoff')
+                        end
                     end
-                end,
-            },
-            {
-                title = 'Miner Status - 🟢',
-                description = 'Hover over this button to show the status of the miner.',
-                icon = 'question',
-                image = 'https://files.catbox.moe/d7r1x0.png'
-            },
-            {
-                title = 'Go Back',
-                description = 'Go back to the main menu.',
-                icon = 'arrow-left',
-                event = 'razed-cryptomining:client:CheckIfOwnedCrypto'
+                },
+                { title = locale('miner_status_running'), description = locale('miner_running_desc'), icon = 'question' },
+                { title = locale('go_back'),              description = locale('go_back_desc'),       icon = 'arrow-left', event = 'razed-cryptomining:client:CheckIfOwnedCrypto' }
             }
-      }}
-    )
-    lib.registerContext({
-        id = 'cryptomenuoff',
-        title = 'Crypto Miner Menu',
-        options = {
-            {
-                title = 'Toggle, View the Status or Withdraw.',
-              },
-              {
-                title = 'Balance: '..balance,
-                icon = 'fa-brands fa-bitcoin'
-              },
-            {
-                title = 'Toggle Crypto Miner',
-                description = 'This toggles the crypto miner to start or stop.',
-                icon = 'toggle-off',
-                onSelect = function()
-                    ToggleCryptoMiner()
-                    if MinerStatus == true then
-                        lib.showContext('cryptomenuon')
-                    else
-                        lib.showContext('cryptomenuoff')
-                    end
-                end,
-            },
-            {
-                title = 'Miner Status - 🔴',
-                description = 'Hover over this button to show the status of the miner.',
-                icon = 'question',
-                image = 'https://files.catbox.moe/q3iz9v.png'
-            },
-            {
-                title = 'Withdraw',
-                description = 'Withdraw your crypto: '..Config.CryptoWithdrawalFeeShown.. '% Fee',
-                icon = 'dollar',
-                serverEvent = 'razed-cryptomining:server:withdrawcrypto',
-                image = 'https://files.catbox.moe/8wh7y4.png'
-            },
-            {
-                title = 'Go Back',
-                description = 'Go back to the main menu.',
-                icon = 'arrow-left',
-                event = 'razed-cryptomining:client:CheckIfOwnedCrypto'
-            },
-      }}
-    )
+        })
 
-    if MinerStatus == true then
-        lib.showContext('cryptomenuon')
-    else
-        lib.showContext('cryptomenuoff')
-    end
-end)
+        lib.registerContext({
+            id = 'cryptomenuoff',
+            title = locale('crypto_menu'),
+            options = {
+                -- { title = locale('toggle_status_withdraw') },
+                { title = locale('balance', balance), icon = 'fa-brands fa-bitcoin' },
+                {
+                    title = locale('toggle_crypto_miner'),
+                    description = locale('miner_off_desc'),
+                    icon = 'toggle-off',
+                    onSelect = function()
+                        ToggleCryptoMiner()
+                        if MinerStatus then
+                            lib.showContext('cryptomenuon')
+                        else
+                            lib.showContext('cryptomenuoff')
+                        end
+                    end
+                },
+                { title = locale('miner_status_off'), description = locale('miner_off_desc'),                                 icon = 'question' },
+                { title = locale('withdraw'),         description = locale('withdraw_desc', Config.CryptoWithdrawalFeeShown), icon = 'dollar',     serverEvent = 'razed-cryptomining:server:withdrawcrypto' },
+                { title = locale('go_back'),          description = locale('go_back_desc'),                                   icon = 'arrow-left', event = 'razed-cryptomining:client:CheckIfOwnedCrypto' }
+            }
+        })
+
+        if MinerStatus then
+            lib.showContext('cryptomenuon')
+        else
+            lib.showContext('cryptomenuoff')
+        end
+    end)
 end)
 
 RegisterNetEvent('razed-cryptomining:client:BuyCryptoMining', function(args)
     lib.registerContext({
         id = 'buycryptominer',
-        title = 'Purchase Crypto Miner',
+        title = locale('purchase_menu'),
         options = {
-            {
-                title = 'Purchase, Upgrade or use the Crypto Miner.',
-              },
-            {
-                title = 'Purchase',
-                description = 'Price: $'..Config.Price['Stage 1'],
-                icon = 'dollar',
-                serverEvent = 'razed-cryptomining:server:buyCryptoMiner',
-                disabled = args.owned,
-                metadata = {
-                  {label = 'Reviews:', value = '⭐⭐⭐⭐⭐/5'}
-                },
-            },
-            {
-                title = 'Proceed To Crypto Miner Menu',
-                description = 'If you click this button, it will locate you to the main user interface for the crypto miner.',
-                icon = 'fa-brands fa-bitcoin',
-                event = 'razed-cryptomining:client:CryptoMiningMenu',
-                disabled = not args.owned
-            },
-            {
-                title = 'Upgrade Mining Rig',
-                description = 'If you click this button, it will locate you to the upgrade menu.',
-                icon = 'fa-solid fa-sim-card',
-                event = 'razed-cryptomining:client:UpgradeCryptoMining',
-                disabled = not args.owned
-            }
-      }}
-    )
+            -- { title = locale('toggle_status_withdraw') },
+            { title = locale('purchase'),           description = locale('purchase_desc', Config.Price['Stage 1']), icon = 'dollar',                                         serverEvent = 'razed-cryptomining:server:buyCryptoMiner', disabled = args.owned },
+            { title = locale('proceed_menu'),       icon = 'fa-brands fa-bitcoin',                                  event = 'razed-cryptomining:client:CryptoMiningMenu',    disabled = not args.owned },
+            { title = locale('upgrade_mining_rig'), icon = 'fa-solid fa-sim-card',                                  event = 'razed-cryptomining:client:UpgradeCryptoMining', disabled = not args.owned }
+        }
+    })
     lib.showContext('buycryptominer')
 end)
 
 RegisterNetEvent('razed-cryptomining:client:UpgradeCryptoMining', function()
-    QBCore.Functions.TriggerCallback('razed-cryptomining:server:showGPU', function(GPUType)
-    QBCore.Functions.TriggerCallback('razed-cryptomining:server:checkGPUImage', function(image)
-
-    lib.registerContext({
-        id = 'upgradecryptominer',
-        title = 'Upgrade Crypto Miner',
-        options = {
-            {
-                title = 'Got the GPU? Upgrade it here!',
-            },
-            {
-                title = 'Current GPU: '..GPUType,
-                image = image
-            },
-            {
-                title = 'Go Back',
-                description = 'Go back to the main menu.',
-                icon = 'arrow-left',
-                event = 'razed-cryptomining:client:CheckIfOwnedCrypto'
-            },
-            {
-                title = 'GTX 480',
-                description = 'The default gpu. Lets just say its a classic...',
-                icon = 'fa-solid fa-question',
-                event = 'razed-cryptomining:client:useGTX480',
-                image = 'https://files.catbox.moe/ivxw2a.png',
-                disabled = CheckGTX480()
-            },
-            {
-                title = 'GTX 1050',
-                description = 'The 1050. It is alright, but very slow.',
-                icon = 'fa-solid fa-1',
-                event = 'razed-cryptomining:client:useGTX1050',
-                image = 'https://files.catbox.moe/rojnv7.png',
-                disabled = CheckGTX1050()
-            },
-            {
-                title = 'GTX 1060',
-                description = 'The 1060. Are we stil in 2018?',
-                icon = 'fa-solid fa-2',
-                event = 'razed-cryptomining:client:useGTX1060',
-                image = 'https://files.catbox.moe/xd2c5j.png',
-                disabled = CheckGTX1060()
-            },
-            {
-                title = 'GTX 1080',
-                description = 'An absolute classic!',
-                icon = 'fa-solid fa-3',
-                event = 'razed-cryptomining:client:useGTX1080',
-                image = 'https://files.catbox.moe/y58jcq.png',
-                disabled = CheckGTX1080()
-            },
-            {
-                title = 'RTX 2080',
-                description = 'The first raytracing flagship.',
-                icon = 'fa-solid fa-4',
-                event = 'razed-cryptomining:client:useRTX2080',
-                image = 'https://files.catbox.moe/6ygah8.png',
-                disabled = CheckRTX2080()
-            },
-            {
-                title = 'RTX 3060',
-                description = 'Was the best gpu for price to preformance, but it is pretty slow now-a-days.',
-                icon = 'fa-solid fa-5',
-                event = 'razed-cryptomining:client:useRTX3060',
-                image = 'https://files.catbox.moe/ugf1ir.png',
-                disabled = CheckRTX3060()
-            },
-            {
-                title = 'RTX 4090',
-                description = 'An absolute beast of a card, will you really need to upgrade it?',
-                icon = 'fa-solid fa-6',
-                event = 'razed-cryptomining:client:useRTX4090',
-                image = 'https://files.catbox.moe/4bjhmx.png',
-                disabled = CheckRTX4090()
-            },
-            {
-                title = 'RTX 5090',
-                description = 'The best of the best. An absolute tank, no need for another upgrade.',
-                icon = 'fa-solid fa-7',
-                event = 'razed-cryptomining:client:useRTX5090',
-                image = 'https://files.catbox.moe/p5odzm.png',
-                disabled = CheckRTX5090()
-            }
-      }}
-    )
-    lib.showContext('upgradecryptominer')
-end)
-end)
+    TriggerServerCallback('razed-cryptomining:server:showGPU', function(GPUType)
+        TriggerServerCallback('razed-cryptomining:server:checkGPUImage', function(image)
+            lib.registerContext({
+                id = 'upgradecryptominer',
+                title = locale('upgrade_menu'),
+                options = {
+                    { title = locale('got_gpu_upgrade') },
+                    { title = locale('current_gpu', GPUType), image = image },
+                    { title = locale('go_back'),              description = locale('go_back_desc'),     icon = 'arrow-left',           event = 'razed-cryptomining:client:CheckIfOwnedCrypto' },
+                    { title = locale('gpu_gtx480'),           description = locale('gpu_gtx480_desc'),  icon = 'fa-solid fa-question', event = 'razed-cryptomining:client:useGTX480',         image = 'https://files.catbox.moe/ivxw2a.png', disabled = CheckGTX480() },
+                    { title = locale('gpu_gtx1050'),          description = locale('gpu_gtx1050_desc'), icon = 'fa-solid fa-1',        event = 'razed-cryptomining:client:useGTX1050',        image = 'https://files.catbox.moe/rojnv7.png', disabled = CheckGTX1050() },
+                    { title = locale('gpu_gtx1060'),          description = locale('gpu_gtx1060_desc'), icon = 'fa-solid fa-2',        event = 'razed-cryptomining:client:useGTX1060',        image = 'https://files.catbox.moe/xd2c5j.png', disabled = CheckGTX1060() },
+                    { title = locale('gpu_gtx1080'),          description = locale('gpu_gtx1080_desc'), icon = 'fa-solid fa-3',        event = 'razed-cryptomining:client:useGTX1080',        image = 'https://files.catbox.moe/y58jcq.png', disabled = CheckGTX1080() },
+                    { title = locale('gpu_rtx2080'),          description = locale('gpu_rtx2080_desc'), icon = 'fa-solid fa-4',        event = 'razed-cryptomining:client:useRTX2080',        image = 'https://files.catbox.moe/6ygah8.png', disabled = CheckRTX2080() },
+                    { title = locale('gpu_rtx3060'),          description = locale('gpu_rtx3060_desc'), icon = 'fa-solid fa-5',        event = 'razed-cryptomining:client:useRTX3060',        image = 'https://files.catbox.moe/ugf1ir.png', disabled = CheckRTX3060() },
+                    { title = locale('gpu_rtx4090'),          description = locale('gpu_rtx4090_desc'), icon = 'fa-solid fa-6',        event = 'razed-cryptomining:client:useRTX4090',        image = 'https://files.catbox.moe/4bjhmx.png', disabled = CheckRTX4090() },
+                    { title = locale('gpu_rtx5090'),          description = locale('gpu_rtx5090_desc'), icon = 'fa-solid fa-7',        event = 'razed-cryptomining:client:useRTX5090',        image = 'https://files.catbox.moe/p5odzm.png', disabled = CheckRTX5090() }
+                }
+            })
+            lib.showContext('upgradecryptominer')
+        end)
+    end)
 end)
 
 function ToggleCryptoMiner()
- if MinerStatus == true then
-        lib.notify({
-            title = 'Stopping Miner!',
-            description = 'The miner has been stopped and now will stop mining coins.',
-            type = 'error',
-            duration = '500'
-        })
+    if MinerStatus then
+        lib.notify({ title = locale('toggle_stopping'), description = locale('toggle_stopping_desc'), type = 'error', duration = 5000 })
         Wait(500)
-            MinerStatus = false
-            print('Stopped Miner')
+        MinerStatus = false
         MinerStopped()
-    else if MinerStatus == false then
-        lib.notify({
-            title = 'Starting Miner!',
-            description = 'The miner has been started and now will start mining coins!',
-            type = 'success',
-            duration = '500'
-        })
+    else
+        lib.notify({ title = locale('toggle_starting'), description = locale('toggle_starting_desc'), type = 'success', duration = 5000 })
         Wait(500)
-            MinerStatus = true
-            print('Starting Miner')
+        MinerStatus = true
         MinerStarted()
     end
-  end
 end
 
 RegisterNetEvent('razed-cryptomining:client:addinfo', function(data)
-    if data == nil then
-        arg.owned = false
-    else
-        arg.owned = true
-    end
+    arg.owned = data ~= nil
 end)
 
 function MinerStarted()
@@ -278,49 +183,49 @@ RegisterNetEvent('razed-cryptomining:client:CheckIfOwnedCrypto', function()
     TriggerEvent('razed-cryptomining:client:BuyCryptoMining', arg)
 end)
 
-RegisterNetEvent('razed-cryptomining:client:sendMail', function()
-    if Config.Email == true then
-    TriggerServerEvent('qb-phone:server:sendNewMail', {
-        sender = Config.PurchaseEmailSender,
-        subject = Config.PurchaseEmailSubject,
-        message = Config.PurchaseEmailText,
-    })
-    else if Config.Email == false then
-        print('Bought Miner')
+local function SendMail(sender, subject, message)
+    if not Config.Email then return end
+    if Config.Crypto == 'lb-phone' then
+        TriggerServerEvent('razed-cryptomining:server:sendMail',
+        { sender = sender, subject = subject, message = message })
+        return
     end
+    if FrameWork == 'qb' and GetResourceState('qb-phone') == 'started' then
+        TriggerServerEvent('qb-phone:server:sendNewMail', { sender = sender, subject = subject, message = message })
+        return
+    end
+    if FrameWork == 'esx' and GetResourceState('gcphone') == 'started' then
+        TriggerServerEvent('gcPhone:sendMessageFromServer', sender, subject .. "\n" .. message)
+        return
+    end
+    print('[CryptoMining] Email system not available for this framework.')
 end
+
+RegisterNetEvent('razed-cryptomining:client:sendMail', function()
+    SendMail(locale('email_purchase_sender'), locale('email_purchase_subject'), locale('email_purchase_text'))
 end)
 
 RegisterNetEvent('razed-cryptomining:client:sendGPUMail', function()
-    if Config.Email == true then
-    TriggerServerEvent('qb-phone:server:sendNewMail', {
-        sender = Config.gpuEmailSender,
-        subject = Config.gpuEmailSubject,
-        message = Config.gpuEmailText,
-    })
-    else if Config.Email == false then
-        print('Bought Miner')
-    end
-end
+    SendMail(locale('email_gpu_sender'), locale('email_gpu_subject'), locale('email_gpu_text'))
 end)
 
 CreateThread(function()
-    if Config.Target == 'qb' then
+    if Config.Target == 'qb' and GetResourceState('qb-target') == 'started' then
         exports['qb-target']:AddTargetModel(CryptoMinerProp, {
             options = {
-                { 
+                {
                     icon = "fa-brands fa-bitcoin",
-                    label = "Open Crypto Miner Menu",
+                    label = locale('open_target'),
                     event = "razed-cryptomining:client:CheckIfOwnedCrypto"
                 },
             },
             distance = 3.0,
         })
-    elseif Config.Target == 'ox' then
+    elseif Config.Target == 'ox' and GetResourceState('ox_target') == 'started' then
         exports.ox_target:addModel(CryptoMinerProp, {
             {
                 icon = "fa-brands fa-bitcoin",
-                label = "Open Crypto Miner Menu",
+                label = locale('open_target'),
                 event = "razed-cryptomining:client:CheckIfOwnedCrypto",
                 distance = 3.0,
             }

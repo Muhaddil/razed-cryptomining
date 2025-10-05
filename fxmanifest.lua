@@ -10,16 +10,20 @@ version '1.0.1'
 lua54 'yes'
 
 client_script {
-    'client/client.lua',
-    'client/gpu.lua'
+    'client/*',
 }
 
 server_script {
-    'server/server.lua',
+    'server/*',
     '@oxmysql/lib/MySQL.lua'
 }
 
 shared_scripts {
     '@ox_lib/init.lua',
-    'config.lua'
+    'config.lua',
+    'locales/*.lua',
+}
+
+files {
+    'locales/*.json'
 }
