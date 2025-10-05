@@ -65,10 +65,7 @@ The script now includes extensive configuration options in `config.lua`:
 * Crypto selling command toggle
 
 # Credits
-**Original Creators:**
+**Original Creators:**\
 [planeklm (KLM)](https://github.com/planeklm)\
 [LeSiiN](https://github.com/LeSiiN)\
-[Markow](https://github.com/amsali22)\
-
-**ESX port:**
-[Muhaddil](https://github.com/Muhaddil)
+[Markow](https://github.com/amsali22)
